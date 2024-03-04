@@ -1,0 +1,162 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ams-frontend-deployment 
+  annotations:
+   kubernetes.io/change-cause: "updating to the version 1.0.2"
+spec:
+  replicas:  1
+  selector:
+    matchLabels:
+      app: ams
+      team: frontend
+  template:
+    metadata:
+      labels:
+        app: ams
+        team: frontend
+    spec:
+      containers:
+      - name: frontend-container-pod
+        image: rajeevranjan27/ams-frontend:1.0.2
+        ports:
+        - containerPort: 3000
+        env:
+        - name: NEXT_PUBLIC_BURL
+          value: "http://192.168.49.2:30001"    
+
+---
+
+apiVersion: v1 
+kind: Service 
+metadata: 
+  name: frontend-service
+spec: 
+ selector: 
+    app: ams
+    team: frontend
+ type: NodePort #ClusterIP ##NodePort #ClusterIP #default service
+ ports: 
+   - port: 3001
+     targetPort: 3000
+     nodePort: 30008
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ams-backend-deployment
+  annotations:
+   kubernetes.io/change-cause: "updating to the latest version 1.0.3"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ams
+      team: backend
+  template:
+    metadata:
+      labels:
+        app: ams
+        team: backend
+    spec:
+      containers:
+      - name: backend-container-pod
+        image: rajeevranjan27/ams-backend:1.0.3
+        ports:
+        - containerPort: 8080
+        env:
+        - name: POSTGRES_HOST
+          value: "postgres-db"  # Set the hostname to "postgres-db"
+        - name: ADDR
+          value: "postgres-db:5432"
+        - name: USER
+          value: "user1"
+        - name: PASSWORD
+          value: "password1"
+        - name: DATABASE
+          value: "userdb"
+
+---
+apiVersion: v1 
+kind: Service 
+metadata: 
+  namespace: 
+  name: backend-service
+spec: 
+ selector: 
+    app: ams
+    team: backend
+ type: NodePort #ClusterIP #default service
+ ports: 
+   - port: 8082
+     targetPort: 8080
+     nodePort: 30009
+
+
+---
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-db
+  labels:
+    team: integrations
+    app: ams-db
+spec:
+  selector:
+    matchLabels:
+       app: ams-db
+  serviceName: "postgres-db"
+  replicas: 1
+  template:
+    metadata:
+       labels: 
+         app: ams-db
+    spec: 
+      containers:
+        - name: postgres-db
+          image: postgres:latest
+          env:
+            - name: POSTGRES_USER
+              value: "user1"   # Update with your desired username
+            - name: POSTGRES_PASSWORD
+              value: "password1"   # Update with your desired password
+            - name: POSTGRES_DB
+              value: "userdb"   # Update with your desired database name
+            - name: POSTGRES_HOST_AUTH_METHOD
+              value: "md5"   # Use md5 authentication method
+            - name: POSTGRES_HOST
+              value: "postgres-db"  # Set the hostname to "postgres-db"
+          ports: 
+            - containerPort: 5432   # PostgreSQL default port
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data 
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi           
+
+
+---
+
+apiVersion: v1 
+kind: Service 
+metadata: 
+  name: postgres-db 
+spec: 
+  ports: 
+    - name: postgres-db 
+      port: 5432
+      targetPort: 5432
+  clusterIP: None
+  selector: 
+    app: ams-db  # Indentation aligned with other fields
+
+
